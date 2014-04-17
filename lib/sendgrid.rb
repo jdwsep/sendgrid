@@ -10,7 +10,8 @@ module SendGrid
     :subscriptiontrack,
     :footer,
     :spamcheck,
-    :bypass_list_management
+    :bypass_list_management,
+    :bcc
   ]
 
   VALID_GANALYTICS_OPTIONS = [
@@ -25,10 +26,10 @@ module SendGrid
     base.class_eval do
       class << self
         attr_accessor :default_sg_category, :default_sg_options, :default_subscriptiontrack_text,
-                      :default_footer_text, :default_spamcheck_score, :default_sg_unique_args
+                      :default_footer_text, :default_spamcheck_score, :default_sg_unique_args, :default_bcc_email
       end
       attr_accessor :sg_category, :sg_options, :sg_disabled_options, :sg_recipients, :sg_substitutions,
-                    :subscriptiontrack_text, :footer_text, :spamcheck_score, :sg_unique_args
+                    :subscriptiontrack_text, :footer_text, :spamcheck_score, :sg_unique_args, :bcc_email
     end
 
     # NOTE: This commented-out approach may be a "safer" option for Rails 3, but it
@@ -63,6 +64,7 @@ module SendGrid
     # * :subscriptiontrack
     # * :footer
     # * :spamcheck
+    # * :bcc
     def sendgrid_enable(*options)
       self.default_sg_options = Array.new unless self.default_sg_options
       options.each { |option| self.default_sg_options << option if VALID_OPTIONS.include?(option) }
@@ -95,6 +97,14 @@ module SendGrid
     #   { :some_unique_arg => "some_value"}
     def sendgrid_unique_args(unique_args = {})
       self.default_sg_unique_args = unique_args
+    end
+
+    # Sets the default bcc email to be used when enabling the bcc filter (app)
+    # If you do not have the bcc app enabled on your SendGrid account, then
+    # you must either supply the default or a mailer specific value here in order
+    # to turn on the the bcc app.
+    def sendgrid_bcc_email(email)
+      self.default_bcc_email = email
     end
   end
 
@@ -155,6 +165,11 @@ module SendGrid
   def sendgrid_ganalytics_options(options)
     @ganalytics_options = []
     options.each { |option| @ganalytics_options << option if VALID_GANALYTICS_OPTIONS.include?(option[0].to_sym) }
+  end
+
+  # Call within mailer method to override the default value.
+  def sendgrid_bcc_email(email)
+    @bcc_email = email
   end
   
   # only override the appropriate methods for the current ActionMailer version
@@ -290,6 +305,13 @@ module SendGrid
             @ganalytics_options.each do |key, value|
               filters[:ganalytics]['settings'][key.to_s] = value
             end
+          end
+
+        when :bcc
+          if @bcc_email
+            filters[:bcc]['settings']['email'] = @bcc_email
+          elsif self.class.default_bcc_email
+            filters[:bcc]['settings']['email'] = self.class.default_bcc_email
           end
       end
     end
